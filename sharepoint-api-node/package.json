@@ -1,0 +1,19 @@
+{
+  "name": "sharepoint-api-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "test.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "request": "^2.88.2",
+    "winston": "^3.8.2"
+  }
+}
