@@ -4,9 +4,12 @@ import com.alibaba.fastjson.JSONObject;
 import com.kyndryl.sharepoint.api.SharepointApiService;
 import com.kyndryl.sharepoint.common.property.ApiProperties;
 import com.kyndryl.sharepoint.entity.OauthToken;
+import com.kyndryl.sharepoint.util.CommonInputStreamResource;
 import com.kyndryl.sharepoint.util.PropertiesUtil;
 import com.sun.mail.iap.ByteArray;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -50,25 +53,25 @@ public class SharepointApiServiceImpl implements SharepointApiService {
     }
 
     /***
-    public ApiProperties GetAllProperties() {
+     public ApiProperties GetAllProperties() {
 
-        apiProperties = new ApiProperties();
+     apiProperties = new ApiProperties();
 
-        String tokenUrl = System.getenv("sharepoint.api.tokenUrl");
-        String grant_type = System.getenv("sharepoint.api.grant_type");
-        String clientId = System.getenv("sharepoint.api.clientId");
-        String clientSecret = System.getenv("sharepoint.api.clientSecret");
-        String resource = System.getenv("sharepoint.api.resource");
+     String tokenUrl = System.getenv("sharepoint.api.tokenUrl");
+     String grant_type = System.getenv("sharepoint.api.grant_type");
+     String clientId = System.getenv("sharepoint.api.clientId");
+     String clientSecret = System.getenv("sharepoint.api.clientSecret");
+     String resource = System.getenv("sharepoint.api.resource");
 
-        apiProperties.setTokenUrl(tokenUrl);
-        apiProperties.setGrant_type(grant_type);
-        apiProperties.setClientId(clientId);
-        apiProperties.setClientSecret(clientSecret);
-        apiProperties.setResource(resource);
+     apiProperties.setTokenUrl(tokenUrl);
+     apiProperties.setGrant_type(grant_type);
+     apiProperties.setClientId(clientId);
+     apiProperties.setClientSecret(clientSecret);
+     apiProperties.setResource(resource);
 
-        return apiProperties;
-    }
-    ***/
+     return apiProperties;
+     }
+     ***/
 
     private OauthToken getAccessToken() {
 
@@ -94,6 +97,7 @@ public class SharepointApiServiceImpl implements SharepointApiService {
                 .toString();
 
         try {
+            RestTemplateBuilder restTemplateBuilder = new RestTemplateBuilder();
             RestTemplate restTemplate = new RestTemplate();
             //ResponseEntity<String> exchange = restTemplate.postForEntity(url, httpEntity, String.class);
             ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, httpEntity, String.class);
@@ -185,7 +189,7 @@ public class SharepointApiServiceImpl implements SharepointApiService {
         String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
 
         HttpHeaders headers = new HttpHeaders();
-        headers.add("Accept", MediaType.APPLICATION_PDF_VALUE);
+        headers.add("Accept", MediaType.MULTIPART_FORM_DATA_VALUE);
         headers.add("Authorization", authorization);
 
         MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
@@ -214,6 +218,7 @@ public class SharepointApiServiceImpl implements SharepointApiService {
             byte[] buffer = exchange.getBody().getBytes(StandardCharsets.ISO_8859_1);
             BufferedOutputStream bos = new BufferedOutputStream(fos);
             bos.write(buffer);
+            bos.flush();
             fos.close();
 
             log.info("download finish");
@@ -238,19 +243,26 @@ public class SharepointApiServiceImpl implements SharepointApiService {
         String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
 
         HttpHeaders headers = new HttpHeaders();
-        headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+        headers.add("Accept", MediaType.MULTIPART_FORM_DATA_VALUE);
         headers.add("Authorization", authorization);
 
         File file = new File(localFile);
+        FileInputStream fileInputStream = new FileInputStream(file);
+
         String fileName = file.getName();
+        long fileLength = file.length();
 
-        //log.info("fileName========: " + fileName);
+        log.info("fileName========" + fileName);
 
-        FileSystemResource fileSystemResource = new FileSystemResource(localFile);
-        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
-        requestBody.add("file", fileSystemResource);
+        //FileSystemResource fileSystemResource = new FileSystemResource(file);
+        //MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
 
-        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
+
+        CommonInputStreamResource commonInputStreamResource = new CommonInputStreamResource(fileInputStream, fileName, fileLength);
+        //requestBody.add("file", commonInputStreamResource);
+
+        //HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
+        HttpEntity<Object> httpEntity = new HttpEntity<>(commonInputStreamResource, headers);
 
         String postUrl = "";
         postUrl = siteUrl + "/_api/web/GetFolderByServerRelativeUrl('";
@@ -282,7 +294,6 @@ public class SharepointApiServiceImpl implements SharepointApiService {
 
 
     }
-
 
     public Boolean folderExsit(String remoteFolder) {
 
