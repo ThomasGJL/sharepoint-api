@@ -32,7 +32,10 @@ public class SharepointApiServiceImpl implements SharepointApiService {
 
     private String siteUrl = PropertiesUtil.getProperties("config", "sharepoint.api.siteUrl");
 
-    //get information from system env
+    /***
+     * get information from system env
+     * @return
+     */
     private ApiProperties GetAllProperties() {
 
         apiProperties = new ApiProperties();
@@ -53,26 +56,30 @@ public class SharepointApiServiceImpl implements SharepointApiService {
     }
 
     /***
-     public ApiProperties GetAllProperties() {
+    public ApiProperties GetAllProperties() {
 
-     apiProperties = new ApiProperties();
+        apiProperties = new ApiProperties();
 
-     String tokenUrl = System.getenv("sharepoint.api.tokenUrl");
-     String grant_type = System.getenv("sharepoint.api.grant_type");
-     String clientId = System.getenv("sharepoint.api.clientId");
-     String clientSecret = System.getenv("sharepoint.api.clientSecret");
-     String resource = System.getenv("sharepoint.api.resource");
+        String tokenUrl = System.getenv("sharepoint.api.tokenUrl");
+        String grant_type = System.getenv("sharepoint.api.grant_type");
+        String clientId = System.getenv("sharepoint.api.clientId");
+        String clientSecret = System.getenv("sharepoint.api.clientSecret");
+        String resource = System.getenv("sharepoint.api.resource");
 
-     apiProperties.setTokenUrl(tokenUrl);
-     apiProperties.setGrant_type(grant_type);
-     apiProperties.setClientId(clientId);
-     apiProperties.setClientSecret(clientSecret);
-     apiProperties.setResource(resource);
+        apiProperties.setTokenUrl(tokenUrl);
+        apiProperties.setGrant_type(grant_type);
+        apiProperties.setClientId(clientId);
+        apiProperties.setClientSecret(clientSecret);
+        apiProperties.setResource(resource);
 
-     return apiProperties;
-     }
-     ***/
+        return apiProperties;
+    }
+    ***/
 
+    /***
+     * get access token
+     * @return
+     */
     private OauthToken getAccessToken() {
 
         GetAllProperties();
@@ -136,8 +143,11 @@ public class SharepointApiServiceImpl implements SharepointApiService {
         return oauthToken;
     }
 
-
-    //only first page,
+    /***
+     * Get all folders and files
+     * Because of no more requirement for these, the function only get contents of first page, haven't finished yet
+     * @return JSONObject
+     */
     public JSONObject getAllFolderAndFiles() {
 
         oauthToken = getAccessToken();
@@ -180,9 +190,11 @@ public class SharepointApiServiceImpl implements SharepointApiService {
         return allfolderfiles;
     }
 
-    /**
-     *  download file
-     * */
+    /***
+     * download file from remote folder
+     * @param localFile
+     * @param remoteFile
+     */
     public void downloadFile(String localFile, String remoteFile) {
 
         oauthToken = getAccessToken();
@@ -234,9 +246,12 @@ public class SharepointApiServiceImpl implements SharepointApiService {
 
     }
 
-    /**
-     *  upload file
-     * */
+    /***
+     * upload local file to remote folder
+     * @param localFile
+     * @param remoteFolder
+     * @throws IOException
+     */
     public void uploadFile(String localFile, String remoteFolder) throws IOException {
 
         oauthToken = getAccessToken();
@@ -295,6 +310,11 @@ public class SharepointApiServiceImpl implements SharepointApiService {
 
     }
 
+    /***
+     * check remote folder exsited or not
+     * @param remoteFolder
+     * @return
+     */
     public Boolean folderExsit(String remoteFolder) {
 
         boolean folderEx = false;
@@ -341,6 +361,189 @@ public class SharepointApiServiceImpl implements SharepointApiService {
         log.info("folderEx======== {}", folderEx);
 
         return folderEx;
+    }
+
+    /***
+     * create a remote folder
+     * @param remoteFolder
+     */
+    public void createFolder(String remoteFolder) {
+
+        oauthToken = getAccessToken();
+        String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+        headers.add("Content-type", "application/json;odata=verbose");
+        headers.add("Authorization", authorization);
+
+        String bodyJson = "{\"__metadata\": {\"type\": \"SP.Folder\"},\"ServerRelativeUrl\": \""+ remoteFolder +"\"}";
+
+        //MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+        HttpEntity<Object> httpEntity = new HttpEntity<>(bodyJson, headers);
+
+        String remoteUrl = "";
+        remoteUrl = siteUrl + "/_api/web/folders";
+
+        //Prepare URL
+        String url = UriComponentsBuilder
+                .fromHttpUrl(remoteUrl)
+                .build()
+                .encode()
+                .toString();
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, httpEntity, String.class);
+
+        } catch (HttpClientErrorException e) {
+            String responseBodyAsString = e.getResponseBodyAsString();
+            this.oauthToken.setError(responseBodyAsString);
+            log.error("createFolder exception: {}", oauthToken.getError());
+        } catch (Exception e) {
+            this.oauthToken.setError(e.getMessage());
+            log.error("createFolder exception: {}", oauthToken.getError());
+        }
+
+    }
+
+    /***
+     *
+     * @param remoteFile
+     * @return
+     */
+    public Boolean fileExsit(String remoteFile) {
+
+        boolean filExsit = false;
+
+        oauthToken = getAccessToken();
+        String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+        headers.add("Authorization", authorization);
+
+        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+
+        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
+
+        String remoteUrl = "";
+        remoteUrl = siteUrl + "/_api/web/GetFileByServerRelativeUrl('";
+        remoteUrl = remoteUrl + remoteFile + "')";
+
+        //Prepare URL
+        String url = UriComponentsBuilder
+                .fromHttpUrl(remoteUrl)
+                .build()
+                .encode()
+                .toString();
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.GET, httpEntity, String.class);
+
+            if (exchange.getStatusCodeValue() == 200) {
+                filExsit = true;
+            }
+
+        } catch (HttpClientErrorException e) {
+            String responseBodyAsString = e.getResponseBodyAsString();
+            this.oauthToken.setError(responseBodyAsString);
+            log.error("fileExsit exception: {}", oauthToken.getError());
+        } catch (Exception e) {
+            this.oauthToken.setError(e.getMessage());
+            log.error("fileExsit exception: {}", oauthToken.getError());
+        }
+
+        log.info("filExsit======== {}", filExsit);
+
+        return filExsit;
+    }
+
+    /***
+     *
+     * @param remoteFile
+     */
+    public void deleteFile(String remoteFile) {
+
+        oauthToken = getAccessToken();
+        String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+        headers.add("Authorization", authorization);
+
+        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+
+        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
+
+        String remoteUrl = "";
+        remoteUrl = siteUrl + "/_api/web/GetFileByServerRelativeUrl('";
+        remoteUrl = remoteUrl + remoteFile + "')";
+
+        //Prepare URL
+        String url = UriComponentsBuilder
+                .fromHttpUrl(remoteUrl)
+                .build()
+                .encode()
+                .toString();
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.DELETE, httpEntity, String.class);
+
+        } catch (HttpClientErrorException e) {
+            String responseBodyAsString = e.getResponseBodyAsString();
+            this.oauthToken.setError(responseBodyAsString);
+            log.error("deleteFile exception: {}", oauthToken.getError());
+        } catch (Exception e) {
+            this.oauthToken.setError(e.getMessage());
+            log.error("deleteFile exception: {}", oauthToken.getError());
+        }
+    }
+
+    /***
+     *
+     * @param remoteFolder
+     * @return
+     */
+    public void deleteFolder(String remoteFolder) {
+
+        oauthToken = getAccessToken();
+        String authorization = oauthToken.getToken_type() + " " + oauthToken.getAccess_token();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Accept", MediaType.APPLICATION_JSON_VALUE);
+        headers.add("Authorization", authorization);
+
+        MultiValueMap<String, Object> requestBody = new LinkedMultiValueMap<>();
+
+        HttpEntity<MultiValueMap<String, Object>> httpEntity = new HttpEntity<>(requestBody, headers);
+
+        String remoteUrl = "";
+        remoteUrl = siteUrl + "/_api/web/GetFolderByServerRelativeUrl('";
+        remoteUrl = remoteUrl + remoteFolder + "')";
+
+        //Prepare URL
+        String url = UriComponentsBuilder
+                .fromHttpUrl(remoteUrl)
+                .build()
+                .encode()
+                .toString();
+
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.DELETE, httpEntity, String.class);
+
+        } catch (HttpClientErrorException e) {
+            String responseBodyAsString = e.getResponseBodyAsString();
+            this.oauthToken.setError(responseBodyAsString);
+            log.error("deleteFolder exception: {}", oauthToken.getError());
+        } catch (Exception e) {
+            this.oauthToken.setError(e.getMessage());
+            log.error("deleteFolder exception: {}", oauthToken.getError());
+        }
+
     }
 
 }

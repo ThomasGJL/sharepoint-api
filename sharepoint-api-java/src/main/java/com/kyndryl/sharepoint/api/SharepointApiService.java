@@ -18,4 +18,12 @@ public interface SharepointApiService {
 
     Boolean folderExsit(String remoteFolder);
 
+    void createFolder(String remoteFolder);
+
+    Boolean fileExsit(String remoteFile);
+
+    void deleteFile(String remoteFile);
+
+    void deleteFolder(String remoteFolder);
+
 }
